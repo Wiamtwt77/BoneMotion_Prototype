@@ -1,3 +1,4 @@
+[ROADMAP.md](https://github.com/user-attachments/files/31178012/ROADMAP.md)
 # Prototype → Product roadmap
 
 ## Phase 1 — interaction validation
