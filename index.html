@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BoneMotion Prototype</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="brand">BoneMotion</div>
+      <div class="sub">Bone-based 2D animation prototype</div>
+    </div>
+    <div class="actions">
+      <button id="uploadBtn">Import Image</button>
+      <button id="autoBtn">Auto Rig</button>
+      <button id="saveBtn">Save</button>
+      <button id="loadBtn">Load</button>
+      <input id="fileInput" type="file" accept="image/*,.json" hidden>
+    </div>
+  </header>
+
+  <main>
+    <aside class="left">
+      <section>
+        <h3>Rig</h3>
+        <button class="tool active" data-tool="select">↖ Select / Pose</button>
+        <button class="tool" data-tool="bone">＋ Add Bone</button>
+        <button class="tool" data-tool="mesh">◇ Mesh</button>
+      </section>
+      <section>
+        <h3>Quick start</h3>
+        <p>Import an image, then use <b>Auto Rig</b> or add bones manually. Drag bone tips to pose the character.</p>
+      </section>
+      <section>
+        <h3>Deformation</h3>
+        <label>Strength <input id="strength" type="range" min="0" max="1" step=".05" value=".75"></label>
+        <label>Falloff <input id="falloff" type="range" min="0" max="1" step=".05" value=".6"></label>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="canvasWrap">
+        <canvas id="canvas" width="900" height="600"></canvas>
+        <div class="hint" id="hint">Import an image to begin</div>
+      </div>
+      <div class="timeline">
+        <div class="timelineHead">
+          <button id="addKey">◆ Add Keyframe</button>
+          <button id="play">▶ Play</button>
+          <button id="reset">Reset Pose</button>
+          <span id="timeLabel">0.0s</span>
+        </div>
+        <input id="timelineSlider" type="range" min="0" max="4" step=".1" value="0">
+        <div class="ticks"><span>0s</span><span>1s</span><span>2s</span><span>3s</span><span>4s</span></div>
+      </div>
+    </section>
+
+    <aside class="right">
+      <section>
+        <h3>Skeleton</h3>
+        <div id="boneList" class="boneList"></div>
+      </section>
+      <section>
+        <h3>Selected bone</h3>
+        <div id="inspector">None</div>
+      </section>
+      <section>
+        <h3>Prototype notes</h3>
+        <ul>
+          <li>Bone hierarchy</li>
+          <li>Basic mesh deformation</li>
+          <li>Keyframe poses</li>
+          <li>JSON project save/load</li>
+        </ul>
+      </section>
+    </aside>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
