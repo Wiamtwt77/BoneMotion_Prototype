@@ -1,11 +1,73 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BoneMotion Core 0.3</title><link rel="stylesheet" href="style.css"></head><body>
-<header><div><b>BoneMotion</b><small>Core Prototype 0.3</small></div>
-<div class="actions"><button id="pick" class="primary">Import Image</button><button id="boneBtn">Add Bone</button><button id="deleteBtn" class="danger">Delete Bone</button><button id="bindBtn">Bind Selected Area</button><button id="resetBtn">Reset</button><input id="file" type="file" accept="image/*" hidden></div></header>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BoneMotion Core 0.4</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div>
+    <b>BoneMotion</b>
+    <small>Core 0.4 · Region Binding Test</small>
+  </div>
+  <div class="actions">
+    <button id="pick" class="primary">Import Image</button>
+    <button id="boneBtn">Add Bone</button>
+    <button id="bindBtn" class="bind">Bind Region</button>
+    <button id="deleteBtn" class="danger">Delete Bone</button>
+    <button id="resetBtn">Reset</button>
+    <input id="file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+  </div>
+</header>
+
 <main>
-<aside><h3>Core test</h3><div class="step">1. Import an image</div><div class="step">2. Add a bone</div><div class="step">3. Select a region</div><div class="step">4. Drag the bone</div>
-<h3>Selected bone</h3><div id="boneList"></div><div id="info" class="panel">None</div></aside>
-<section class="workspace"><div class="canvasWrap"><canvas id="c" width="1100" height="700"></canvas><div id="empty">Import a PNG/JPG/WebP character image</div></div>
-<div class="bottom"><span id="mode">Mode: Select</span><button id="clearSel">Clear Region</button><span class="help">Bone: click endpoint + drag · Region: Shift + drag</span></div></section>
-<aside class="right"><h3>Binding</h3><div id="status" class="panel">No image loaded.</div><h3>How it works</h3><div class="panel">Each bone can have its own image region. The region is stored as a texture tile and deformed by a simple weighted transform around that bone.</div></aside>
-</main><script src="app.js"></script></body></html>
+  <aside class="left">
+    <h3>Core workflow</h3>
+    <div class="step done">✓ Image</div>
+    <div class="step done">✓ Region</div>
+    <div class="step done">✓ Bone</div>
+    <div class="step active">4 · Bind + Move</div>
+
+    <h3>Bones</h3>
+    <div id="boneList"></div>
+
+    <h3>Selection</h3>
+    <div id="selectionInfo" class="panel">No region selected.</div>
+  </aside>
+
+  <section class="workspace">
+    <div class="canvasWrap">
+      <canvas id="c" width="1100" height="700"></canvas>
+      <div id="empty">Import a character image</div>
+    </div>
+    <div class="bottom">
+      <span id="mode">Mode: Select</span>
+      <button id="clearRegion">Clear Region</button>
+      <label><input id="ghost" type="checkbox" checked> Show original</label>
+      <span class="help">Shift + drag = select region · Drag bone endpoint = pose</span>
+    </div>
+  </section>
+
+  <aside class="right">
+    <h3>Binding status</h3>
+    <div id="status" class="panel">Nothing bound yet.</div>
+
+    <h3>Selected bone</h3>
+    <div id="info" class="panel">No bone selected.</div>
+
+    <h3>Test</h3>
+    <div class="panel">
+      1. Select a region around a limb.<br>
+      2. Select a bone.<br>
+      3. Click <b>Bind Region</b>.<br>
+      4. Drag the round endpoint.<br><br>
+      The selected image region should rotate and stretch with the bone.
+    </div>
+  </aside>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
