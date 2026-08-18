@@ -1,55 +1,48 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BoneMotion — Prototype 0.1</title>
-<link rel="stylesheet" href="style.css">
-</head>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BoneMotion 0.2</title><link rel="stylesheet" href="style.css"></head>
 <body>
 <header>
-  <div><b>BoneMotion</b><small>Prototype 0.1 · Image → Bone → Deformation</small></div>
+  <div><b>BoneMotion</b><small>Prototype 0.2 — bones + binding + keyframes</small></div>
   <div class="actions">
-    <button id="import">Import Image</button>
-    <button id="addBone">Add Bone</button>
+    <button id="import" class="primary">Import Image</button>
     <button id="autoRig">Auto Rig</button>
-    <button id="reset">Reset</button>
+    <button id="addBone">Add Bone</button>
+    <button id="deleteBone" class="danger">Delete Bone</button>
+    <button id="reset">Reset Pose</button>
     <input id="file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
   </div>
 </header>
-
 <main>
-  <aside>
-    <h3>Workflow</h3>
-    <div class="step active">1 · Image</div>
-    <div class="step">2 · Bones</div>
-    <div class="step">3 · Bind</div>
-    <div class="step">4 · Animate</div>
-    <p class="note">This prototype intentionally starts simple. The imported image is bound to a deformation mesh and influenced by the bones.</p>
-    <h3>Rig</h3>
-    <div id="bones"></div>
-  </aside>
-
-  <section class="stage">
-    <div class="canvasBox">
-      <canvas id="canvas" width="1000" height="650"></canvas>
-      <div id="empty">Import a character image</div>
-    </div>
-    <div class="bar">
-      <button id="key">◆ Keyframe</button>
-      <button id="play">▶ Play</button>
-      <input id="time" type="range" min="0" max="4" step=".01" value="0">
-      <span id="clock">0.00s</span>
-    </div>
-  </section>
-
-  <aside class="inspector">
-    <h3>Selected Bone</h3>
-    <div id="info">No bone selected.</div>
-    <h3>Binding</h3>
-    <div class="status" id="binding">Image not bound</div>
-  </aside>
+<aside class="left">
+  <h3>Skeleton</h3><div id="bones"></div>
+  <h3>Debug</h3>
+  <label class="check"><input id="showMesh" type="checkbox"> Show mesh</label>
+  <label class="check"><input id="showWeights" type="checkbox"> Show weights</label>
+  <div id="binding" class="status">Image not bound.</div>
+</aside>
+<section class="stage">
+  <div class="canvasBox">
+    <canvas id="canvas" width="1000" height="650"></canvas>
+    <div id="empty">Import a character image</div>
+  </div>
+  <div class="bar">
+    <button id="addKey" class="keyBtn">◆ Add Keyframe</button>
+    <button id="play">▶ Play</button>
+    <button id="prev">◀</button><button id="next">▶</button>
+    <input id="time" type="range" min="0" max="4" step=".01" value="0">
+    <span id="clock">0.00s</span>
+  </div>
+  <div class="timeline">
+    <div class="track"><div class="trackLabel">Pose</div><div id="keys" class="keys"></div></div>
+  </div>
+</section>
+<aside class="right">
+  <h3>Selected Bone</h3><div id="info">No bone selected.</div>
+  <h3>Controls</h3>
+  <div class="hint">Drag the round end of a bone to pose it.<br><br>Right-click a bone to delete it.<br><br>Move the timeline and press <b>Add Keyframe</b> to store the current pose.</div>
+</aside>
 </main>
 <script src="app.js"></script>
-</body>
-</html>
+</body></html>
