@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/31178034/README.md)
 # BoneMotion — Prototype
 
 A small browser prototype for the proposed 2D bone-based animation platform.
