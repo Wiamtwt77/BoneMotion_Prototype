@@ -4,6 +4,14 @@ const state={image:null,imageData:null,bones:[],selected:null,tool:'select',keys
 
 function uid(){return Math.random().toString(36).slice(2,8)}
 function bone(name,x,y,px=null,py=null,parent=null){return {id:uid(),name,x,y,px,py,parent,restX:x,restY:y,restPX:px??x,restPY:py??y}}
+
+function boneStart(b,rest=false){const p=b.parent?state.bones.find(x=>x.id===b.parent):null;return p?(rest?{x:p.restX,y:p.restY}:{x:p.x,y:p.y}):(rest?{x:b.restPX,y:b.restPY}:{x:b.px,y:b.py})}
+function segDist(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;let t=l?((px-ax)*dx+(py-ay)*dy)/l:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-(ax+t*dx),py-(ay+t*dy))}
+function buildMesh(){if(!state.imageData)return;const r=state.imageData,C=30,R=24,v=[];for(let j=0;j<=R;j++)for(let i=0;i<=C;i++){let u=i/C,w=j/R;v.push({u,w,restX:r.x+r.w*u,restY:r.y+r.h*w,weights:[]})}state.mesh={C,R,v};computeWeights()}
+function computeWeights(){if(!state.mesh||!state.bones.length)return;for(const q of state.mesh.v){let a=state.bones.map(b=>{let p=boneStart(b,true),d=segDist(q.restX,q.restY,p.x,p.y,b.restX,b.restY);return{id:b.id,w:1/((d+14)*(d+14))}}).sort((a,b)=>b.w-a.w).slice(0,4),sum=a.reduce((x,y)=>x+y.w,0)||1;q.weights=a.map(x=>({id:x.id,w:x.w/sum}))}}
+function deformVertex(q){let X=0,Y=0,W=0;for(const z of q.weights){const b=state.bones.find(x=>x.id===z.id);if(!b)continue;const a=boneStart(b,true),c=boneStart(b),rx=b.restX-a.x,ry=b.restY-a.y,nx=b.x-c.x,ny=b.y-c.y,L=Math.hypot(rx,ry)||1,M=Math.hypot(nx,ny)||1,co=(rx*nx+ry*ny)/(L*M),si=(rx*ny-ry*nx)/(L*M),px=q.restX-a.x,py=q.restY-a.y,x=(px*co-py*si)*M/L+c.x,y=(px*si+py*co)*M/L+c.y;X+=x*z.w;Y+=y*z.w;W+=z.w}return W?{x:X/W,y:Y/W}:{x:q.restX,y:q.restY}}
+function drawMeshTriangle(a,b,c){const p=deformVertex(a),q=deformVertex(b),r=deformVertex(c),D=state.imageData,x0=D.x+a.u*D.w,y0=D.y+a.w*D.h,x1=D.x+b.u*D.w,y1=D.y+b.w*D.h,x2=D.x+c.u*D.w,y2=D.y+c.w*D.h,den=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);if(Math.abs(den)<.001)return;const A=((q.x-p.x)*(y2-y0)-(r.x-p.x)*(y1-y0))/den,B=((r.x-p.x)*(x1-x0)-(q.x-p.x)*(x2-x0))/den,C=((q.y-p.y)*(y2-y0)-(r.y-p.y)*(y1-y0))/den,E=((r.y-p.y)*(x1-x0)-(q.y-p.y)*(x2-x0))/den,F=p.x-A*x0-B*y0,G=p.y-C*x0-E*y0;ctx.save();ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.lineTo(r.x,r.y);ctx.closePath();ctx.clip();ctx.setTransform(A,C,B,E,F,G);ctx.drawImage(state.image,0,0,state.image.width,state.image.height,0,0,D.w,D.h);ctx.restore()}
+
 function render(){
  ctx.clearRect(0,0,canvas.width,canvas.height);
  if(state.image){drawDeformed();document.getElementById('hint').style.display='none'} else document.getElementById('hint').style.display='block';
@@ -14,12 +22,9 @@ function fitImage(img){
  state.imageData={x:(900-img.width*scale)/2,y:(600-img.height*scale)/2,w:img.width*scale,h:img.height*scale};
 }
 function drawDeformed(){
- const r=state.imageData;
- // Prototype deformation: render the image normally, then visually bend the limb regions
- // by drawing small transformed strips around each bone.
- ctx.save();ctx.globalAlpha=.98;
- ctx.drawImage(state.image,r.x,r.y,r.w,r.h);
- ctx.restore();
+ if(!state.mesh){ctx.drawImage(state.image,state.imageData.x,state.imageData.y,state.imageData.w,state.imageData.h);return}
+ const m=state.mesh;
+ for(let j=0;j<m.R;j++)for(let i=0;i<m.C;i++){let a=m.v[j*(m.C+1)+i],b=m.v[j*(m.C+1)+i+1],c=m.v[(j+1)*(m.C+1)+i],d=m.v[(j+1)*(m.C+1)+i+1];drawMeshTriangle(a,b,d);drawMeshTriangle(a,d,c)}
 }
 function drawBones(){
  ctx.save();
@@ -48,7 +53,7 @@ document.querySelectorAll('.tool').forEach(btn=>btn.onclick=()=>{document.queryS
 document.getElementById('uploadBtn').onclick=()=>{const i=document.getElementById('fileInput');i.accept='image/*';i.click()};
 document.getElementById('fileInput').onchange=e=>{
  const f=e.target.files[0];if(!f)return;
- if(f.type.startsWith('image/')){const img=new Image();img.onload=()=>{state.image=img;fitImage(img);render()};img.src=URL.createObjectURL(f)}
+ if(f.type.startsWith('image/')){const img=new Image();img.onload=()=>{state.image=img;fitImage(img);buildMesh();render()};img.src=URL.createObjectURL(f)}
  else if(f.name.endsWith('.json')){const rd=new FileReader();rd.onload=()=>loadProject(JSON.parse(rd.result));rd.readAsText(f)}
 };
 document.getElementById('autoBtn').onclick=()=>{
@@ -72,7 +77,7 @@ document.getElementById('autoBtn').onclick=()=>{
  state.bones[4].parent=state.bones[0].id;state.bones[5].parent=state.bones[4].id;
  state.bones[6].parent=state.bones[0].id;state.bones[7].parent=state.bones[6].id;
  state.bones[8].parent=state.bones[0].id;state.bones[9].parent=state.bones[8].id;
- state.selected=state.bones[0].id;render()
+ state.selected=state.bones[0].id;computeWeights();render()
 };
 let drag=null;
 canvas.addEventListener('mousedown',e=>{
