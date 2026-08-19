@@ -4,148 +4,135 @@ export default async function handler(req, res) {
   const { action } = req.body;
   const apiKey = process.env.OPENROUTER_KEY;
 
-  if (!apiKey) {
-    return res.status(500).json({ error: 'مفتاح OPENROUTER_KEY غير مفعّل في بيئة Vercel' });
-  }
-
-  // --- 1. توليد بطاقات ديناميكية ومبتكرة للاعب ---
-  if (action === 'generate_cards') {
-    const { player, reputation } = req.body;
-    
-    // احتمال 20% لفرض "بطاقة مجبرة" (نعمة أو نقمة)
-    const isForced = Math.random() < 0.20;
-
-    const prompt = `أنت محرك لعبة "المحكمة السرية".
-قم بابتكار بطاقات للاعب اسمه "${player}" ورصيد سمعته الحالي ${reputation}.
-
-المطلوب:
-${isForced 
-  ? `ابتكر بطاقة واحدة إجبارية فقط (إما "نعمة حتمية" تعطي سمعة، أو "نقمة مظلمة" تخصم سمعة). اجعل isForced: true.`
-  : `ابتكر 3 بطاقات فريدة وجديدة تماماً. كل بطاقة يجب أن تحتوي على ميزة (جيدة) وعيب/مخاطرة (سيئة).`
-}
-
-أخرج الناتج بصيغة JSON فقط بهذا الشكل الدقيق دون أي نص إضافي:
-{
-  "isForced": ${isForced},
-  "cards": [
-    {
-      "id": "معرف_فريد",
-      "name": "اسم البطاقة المبتكر",
-      "desc": "شرح الميزة والمخاطرة",
-      "repChange": 2, // التغير في سمعة صاحبها (موجب أو سالب)
-      "targetRepChange": -2, // التغير في سمعة الهدف إن وجد (أو 0)
-      "requiresTarget": true, // هل تتطلب اختيار خصم؟
-      "isBetrayal": false // هل هي خيانة تحالف؟
-    }
-  ]
-}`;
-
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "anthropic/claude-3-haiku",
-          messages: [{ role: "user", content: prompt }]
-        })
-      });
-
-      const aiData = await response.json();
-      const content = aiData.choices?.[0]?.message?.content || "{}";
-      const parsed = JSON.parse(content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1));
-      
-      return res.status(200).json(parsed);
-    } catch (e) {
-      // احتياطي في حال تعثر الـ AI
-      return res.status(200).json({
-        isForced: false,
-        cards: [
-          { id: 'c1', name: 'صفقة مظلمة', desc: '+3 سمعة لك، وتخصم -2 من خصمك', repChange: 3, targetRepChange: -2, requiresTarget: true },
-          { id: 'c2', name: 'تضحية استراتيجية', desc: '-1 سمعة لك مقابل حماية مستقبليّة', repChange: -1, targetRepChange: 0, requiresTarget: false }
-        ]
-      });
-    }
-  }
-
-  // --- 2. معالجة الجولة وصياغة الراوي ---
+  // --- 1. حسم الجولة والبطاقات والتحالفات ---
   if (action === 'resolve_round') {
-    const { players, actions } = req.body;
+    let { players, actions, alliances, mobTarget } = req.body;
     let logs = [];
+    let newAlliances = { ...alliances };
 
+    // أ) معالجة بطاقات التحالف الخفي أولاً
+    actions.forEach(act => {
+      if (act.card.id === 'ALLIANCE' && act.targetIdx !== null) {
+        const p1 = act.playerIdx;
+        const p2 = act.targetIdx;
+        const key = [Math.min(p1, p2), Math.max(p1, p2)].join('-');
+        newAlliances[key] = true;
+        logs.push(`نشأ عقد تحالف ظلي بين طرفين مجهولين.`);
+      }
+    });
+
+    // ب) معالجة بقية البطاقات مع تطبيق ربط التحالف والمقاطعة
     actions.forEach(act => {
       const p = players[act.playerIdx];
       if (p.reputation <= 0) return;
 
-      p.reputation += act.card.repChange || 0;
+      const card = act.card;
+      let target = act.targetIdx !== null ? players[act.targetIdx] : null;
 
-      if (act.targetIdx !== null && act.targetIdx !== undefined) {
-        const target = players[act.targetIdx];
-        target.reputation += act.card.targetRepChange || 0;
-        logs.push(`تأثرت سمعة ${target.name} بسبب تحرك مجهول.`);
+      // تطبيق التغير المباشر على صاحب البطاقة
+      p.reputation += card.repChange || 0;
+
+      // تطبيق التغير على الهدف (إن وجد) مع درع التحالف
+      if (target && card.targetRepChange < 0) {
+        let dmg = Math.abs(card.targetRepChange);
+        
+        // التحقق من وجود حليف لحمايته وتوزيع الضرر
+        let allyIdx = players.findIndex((ally, idx) => {
+          if (idx === target.id) return false;
+          const key = [Math.min(target.id, idx), Math.max(target.id, idx)].join('-');
+          return newAlliances[key] === true;
+        });
+
+        // إذا كانت البطاقة خيانة، تكسر الحلف سرّاً وتأخذ الضرر كاملاً
+        if (card.id === 'BETRAY') {
+          const key = [Math.min(p.id, target.id), Math.max(p.id, target.id)].join('-');
+          delete newAlliances[key]; // كسر الحلف سرّاً
+          target.reputation = Math.max(0, target.reputation - dmg);
+          p.reputation += dmg; // سرقة السمعة
+          logs.push(`انخفضت سمعة ${target.name} بمقدار ${dmg} جراء خديعة خفية.`);
+        } else if (allyIdx !== -1 && players[allyIdx].reputation > 0) {
+          // توزيع الضرر بين الحليفين (درع التحالف)
+          const halfDmg = Math.ceil(dmg / 2);
+          target.reputation = Math.max(0, target.reputation - halfDmg);
+          players[allyIdx].reputation = Math.max(0, players[allyIdx].reputation - halfDmg);
+          logs.push(`امتص درع التحالف الهجوم! تخفضت سمعة ${target.name} و${players[allyIdx].name} بمقدار ${halfDmg}.`);
+        } else {
+          target.reputation = Math.max(0, target.reputation - dmg);
+          logs.push(`تأثرت سمعة ${target.name} وانخفضت بمقدار ${dmg}.`);
+        }
+      } else if (target && card.targetRepChange > 0) {
+        target.reputation += card.targetRepChange;
       }
 
       p.reputation = Math.max(0, p.reputation);
     });
 
-    const aiPrompt = `صغ تقريراً أدبياً غامضاً من 3 أسطر عن تغيرات السمعة هذه دون كشف الفاعلين أو أسماء البطاقات:
-${JSON.stringify(players.map(p => ({ name: p.name, rep: p.reputation })))}.
-ثم اختم بسؤال مثير للشك لبدء النقاش الجماعي.`;
-
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "anthropic/claude-3-haiku",
-          messages: [{ role: "user", content: aiPrompt }]
-        })
-      });
-      const aiData = await response.json();
-      return res.status(200).json({
-        players,
-        narrative: aiData.choices?.[0]?.message?.content || "اهتزت الأركان واختلطت الأوراق..."
-      });
-    } catch (e) {
-      return res.status(200).json({ players, narrative: "تغيرت موازين السمعة في الظلام..." });
+    // ج) صياغة الراوي السريعة والساخرة من AI (سريع وبدون تطويل)
+    let narrative = "اختلطت الحابل بالنابل في أروقة المحكمة، وانخفضت سمعة البعض واعتلت سمعة آخرين في الظلام...";
+    if (apiKey) {
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "anthropic/claude-3-haiku",
+            messages: [{
+              role: "user",
+              content: `أنت راوٍ ساخر وموجز في لعبة "المحكمة السرية". اكتب تقريراً غامضاً وسريعاً من سطرين فقط باللغة العربية حول الأحداث التالية دون ذكر بطاقات أو فاعلين:
+${logs.join('\n')}
+ثم اطرح سؤالاً إتهامياً قصيراً جداً.`
+            }]
+          })
+        });
+        const aiData = await response.json();
+        narrative = aiData.choices?.[0]?.message?.content || narrative;
+      } catch (e) { console.error(e); }
     }
+
+    return res.status(200).json({ players, alliances: newAlliances, narrative });
   }
 
-  // --- 3. التصويت الجماعي العلني وحسم البراءة/الإدانة ---
+  // --- 2. حسم التصويت الجماعي وإصدار الأحكام ---
   if (action === 'resolve_group_vote') {
-    const { players, accusedIdx, actions } = req.body;
-    
+    const { players, accusedIdx, actions, mobTarget } = req.body;
+
     if (accusedIdx === null || accusedIdx === undefined) {
-      return res.status(200).json({ players, msg: "اتفق الجميع على التغاضي ولم يُعاقب أحد في هذه الجولة." });
+      return res.status(200).json({ players, msg: "اتفق الجميع على الصمت والتغاضي. لم يُعاقب أحد." });
     }
 
     const accused = players[accusedIdx];
-    // التحقق هل ألحق المتهم ضرراً بغيره فعلاً في هذه الجولة؟
     const isGuilty = actions.some(a => a.playerIdx === accusedIdx && a.card.targetRepChange < 0);
 
-    if (isGuilty) {
-      accused.reputation = Math.max(0, accused.reputation - 3);
+    let msg = "";
+
+    // التحقق من فوز المظلوم بدوره السري
+    if (accused.role === 'VICTIM' && !isGuilty) {
       return res.status(200).json({
         players,
-        msg: `ثبتت التهمة بالتصويت الجماعي على ${accused.name}! تم كشف جرمه وخصم 3 نقاط سمعة إضافية منه.`
+        gameEnded: true,
+        msg: `🎉 فوز ساحق ومباغت! اتهمتم ${accused.name} وهو يحمل دور "المظلوم"! ينتهي النزاع بفوزه المباشر!`
+      });
+    }
+
+    if (isGuilty) {
+      accused.reputation = Math.max(0, accused.reputation - 4);
+      msg = `ثبتت التهمة على ${accused.name}! تم فضح تحركاته المباشرة وتجريده من 4 نقاط سمعة.`;
+
+      // مكافأة الجلاد
+      players.forEach(p => {
+        if (p.role === 'EXECUTIONER' && p.id !== accusedIdx) p.reputation += 2;
       });
     } else {
-      // البريء ينجو والمصوتون (بقية الأحياء) يدفعون الثمن
+      // البريء ينجو والمصوتون يدفعون الغرامة
       players.forEach((p, idx) => {
         if (idx !== accusedIdx && p.reputation > 0) {
           p.reputation = Math.max(0, p.reputation - 2);
         }
       });
-      accused.reputation += 1;
-      return res.status(200).json({
-        players,
-        msg: `اتضح أن ${accused.name} بريء! دفع جميع المصوتين الثمن (-2 سمعة لكل منهم)، وكسب المتهم +1 تعويضاً.`
-      });
+      accused.reputation += 2;
+      msg = `سقطتم في الفخ! اتضح أن ${accused.name} بريء! خسر كل مصوّت 2 سمعة، واسترد المتهم عافيته (+2).`;
     }
+
+    return res.status(200).json({ players, msg, gameEnded: false });
   }
 }
