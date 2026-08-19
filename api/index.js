@@ -2,105 +2,95 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   const { action } = req.body;
-  const apiKey = process.env.OPENROUTER_KEY;
 
-  // --- أ) تحليل بطاقة "الصندوق الحر" بواسطة AI ---
-  if (action === 'analyze_custom_card') {
-    const { player, text, targetName } = req.body;
-    
-    const prompt = `أنت القاضي في لعبة "المحكمة السرية".
-اللاعب: "${player}" اختار بطاقة "الصندوق الحر" وكتب الفعل التالي:
-"${text}" ${targetName ? `ضد الهدف: "${targetName}"` : ''}
-
-قم بتقييم هذا الفعل بحيادية ومغامرة:
-1. حدد التغير في سمعة صاحب الفعل (repChange: رقم موجب أو سالب بين -3 و +3).
-2. حدد التغير في سمعة الهدف إن وجد (targetRepChange: رقم بين -3 و +3).
-3. اكتب نتيجة قصيرة ودرامية جداً في سطر واحد بدون ذكر التفاصيل المباشرة.
-
-أخرج الناتج بصيغة JSON فقط:
-{"repChange": 0, "targetRepChange": 0, "log": "نص النتيجة"}`;
-
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "anthropic/claude-3-haiku",
-          messages: [{ role: "user", content: prompt }]
-        })
-      });
-      const aiData = await response.json();
-      const content = aiData.choices?.[0]?.message?.content || "{}";
-      const parsed = JSON.parse(content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1));
-      return res.status(200).json(parsed);
-    } catch (e) {
-      return res.status(200).json({ repChange: 1, targetRepChange: -1, log: "نفذ الحركة ولكن أثرها كان غامضاً." });
-    }
-  }
-
-  // --- ب) حسم الجولة وتقرير التحقيق ---
+  // --- أ) حسم الجولة وتحديد قضية المحكمة ---
   if (action === 'resolve_round') {
-    let { players, actions, alliances, pendingAllianceOffers } = req.body;
-    let logs = [];
-    let newAlliances = { ...alliances };
-    let newPending = { ...pendingAllianceOffers };
+    let { players, actions, pendingOffers, pendingMessages } = req.body;
+    let newOffers = { ...pendingOffers };
+    let newMessages = { ...pendingMessages };
+    let detectedCrimes = [];
 
     actions.forEach(act => {
       const p = players[act.playerIdx];
       if (p.reputation <= 0) return;
 
+      // 1. عرض تحالف
       if (act.card.id === 'ALLIANCE_OFFER' && act.targetIdx !== null) {
-        newPending[act.targetIdx] = act.playerIdx; // تسجيل عرض معلق للهدف
-        logs.push(`تم إرسال عرض تحالف خفي في الظلام.`);
-      } else if (act.card.id === 'CUSTOM_ACT') {
-        p.reputation += act.customResult.repChange || 0;
-        if (act.targetIdx !== null && players[act.targetIdx]) {
-          players[act.targetIdx].reputation += act.customResult.targetRepChange || 0;
-        }
-        logs.push(act.customResult.log);
-      } else {
-        p.reputation += act.card.repChange || 0;
-        if (act.targetIdx !== null && players[act.targetIdx]) {
-          let target = players[act.targetIdx];
-          target.reputation = Math.max(0, target.reputation + (act.card.targetRepChange || 0));
-          logs.push(`تأثرت سمعة ${target.name} بفعل سري.`);
-        }
+        if (!newOffers[act.targetIdx]) newOffers[act.targetIdx] = [];
+        newOffers[act.targetIdx].push({ senderIdx: act.playerIdx, senderName: p.name });
+      } 
+      // 2. رسالة سرية
+      else if (act.card.id === 'SECRET_MSG' && act.targetIdx !== null) {
+        if (!newMessages[act.targetIdx]) newMessages[act.targetIdx] = [];
+        newMessages[act.targetIdx].push({ senderName: p.name, text: act.customText || "رسالة غامضة..." });
+      } 
+      // 3. بطاقات الهجوم والسرقة
+      else if (act.card.id === 'ATTACK' && act.targetIdx !== null) {
+        let target = players[act.targetIdx];
+        target.reputation = Math.max(0, target.reputation - 3);
+        detectedCrimes.push({ type: 'ATTACK', culpritIdx: act.playerIdx, targetName: target.name });
       }
-      p.reputation = Math.max(0, p.reputation);
+      else if (act.card.id === 'STEAL' && act.targetIdx !== null) {
+        let target = players[act.targetIdx];
+        let amount = Math.min(2, target.reputation);
+        target.reputation -= amount;
+        p.reputation += amount;
+        detectedCrimes.push({ type: 'STEAL', culpritIdx: act.playerIdx, targetName: target.name });
+      }
+      else if (act.card.id === 'BOOST') {
+        p.reputation += 2;
+      }
     });
 
-    // احتمال 35% لصدور تقرير تحقيق كاشف للشبهات
-    const isSuspiciousRound = Math.random() < 0.35;
-    let suspectPlayer = null;
-    if (isSuspiciousRound && actions.length > 0) {
-      const randomAct = actions[Math.floor(Math.random() * actions.length)];
-      suspectPlayer = players[randomAct.playerIdx]?.name;
+    // بناء قضية الجولة بناءً على الأحداث الفعلية
+    let courtCase = { title: "", trueCulpritIdx: null };
+
+    if (detectedCrimes.length > 0) {
+      const crime = detectedCrimes[Math.floor(Math.random() * detectedCrimes.length)];
+      courtCase.trueCulpritIdx = crime.culpritIdx;
+
+      if (crime.type === 'ATTACK') {
+        courtCase.title = `⚖️ قضية الجولة: تعرض [${crime.targetName}] لإدانة وهجوم سري! من الفاعل؟`;
+      } else if (crime.type === 'STEAL') {
+        courtCase.title = `⚖️ قضية الجولة: تمت سرقة نفوذ وسمعة من [${crime.targetName}]! من السارق؟`;
+      }
+    } else {
+      courtCase.trueCulpritIdx = null; // لا أحد
+      courtCase.title = `⚖️ قضية الجولة: تسود المحكمة أجواء هادئة... هل تعتقدون أن هناك مجرماً خفياً أم "لا أحد"؟`;
     }
 
-    let narrative = isSuspiciousRound && suspectPlayer
-      ? `🚨 تحذير القاضي: أدلة سريّة تشير إلى أن تحركات [${suspectPlayer}] هذه الجولة كانت خبيثة ومريبة جداً!`
-      : "مرت الجولة بسلام ظاهري، لكن التغيرات في السمعة تومئ باستعدادات تحت الطاولة...";
-
-    return res.status(200).json({ players, alliances: newAlliances, pendingAllianceOffers: newPending, narrative });
+    return res.status(200).json({
+      players,
+      pendingOffers: newOffers,
+      pendingMessages: newMessages,
+      courtCase
+    });
   }
 
-  // --- ج) حسم التصويت ---
-  if (action === 'resolve_group_vote') {
-    const { players, accusedIdx, actions } = req.body;
-    if (accusedIdx === null) return res.status(200).json({ players, msg: "تم التغاضي عن الجميع." });
+  // --- ب) حسم التصويت المحدد ---
+  if (action === 'resolve_case_vote') {
+    const { players, accusedIdx, trueCulpritIdx } = req.body;
 
-    const accused = players[accusedIdx];
-    const isGuilty = actions.some(a => a.playerIdx === accusedIdx && (a.card.targetRepChange < 0 || (a.customResult && a.customResult.targetRepChange < 0)));
+    // إذا صوتوا على "لا أحد" (accusedIdx === null)
+    if (accusedIdx === null) {
+      if (trueCulpritIdx === null) {
+        return res.status(200).json({ players, msg: "🎯 قرار صائب! بالفعل لم يرتكب أحد جُرمًا هذه الجولة. نَجَا الجميع." });
+      } else {
+        const culprit = players[trueCulpritIdx];
+        culprit.reputation += 2;
+        return res.status(200).json({ players, msg: `❌ خطأ! تم التغاضي عن الجريمة وإفلات الجاني [${culprit.name}] وتكافأ بـ +2 سمعة!` });
+      }
+    }
 
-    if (isGuilty) {
+    // إذا تم اتهام لاعب معين
+    if (accusedIdx === trueCulpritIdx) {
+      const accused = players[accusedIdx];
       accused.reputation = Math.max(0, accused.reputation - 4);
-      return res.status(200).json({ players, msg: `ثبتت التهمة على ${accused.name}! تم كشف جرمه وخصم 4 سمعة منه.` });
+      return res.status(200).json({ players, msg: `⚖️ حكم عادل! اتضح أن [${accused.name}] هو الفاعل الحقيقي وصُدِرت بحقه العقوبة (-4 سمعة)!` });
     } else {
-      players.forEach((p, idx) => {
-        if (idx !== accusedIdx && p.reputation > 0) p.reputation = Math.max(0, p.reputation - 2);
-      });
-      accused.reputation += 2;
-      return res.status(200).json({ players, msg: `ظلمتم ${accused.name}! اتضح أنه بريء وسقط خصم 2 سمعة على كل مصوّت.` });
+      const accused = players[accusedIdx];
+      accused.reputation += 2; // تعويض مظلوم
+      return res.status(200).json({ players, msg: `😱 اتّهام باطل! [${accused.name}] بريء من هذه التهمة، وحصل على +2 سمعة كتعويض!` });
     }
   }
 }
