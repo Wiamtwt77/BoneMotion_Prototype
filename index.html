@@ -9,17 +9,16 @@
     body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 12px; }
     .container { max-width: 550px; margin: 0 auto; text-align: center; }
     .panel { background: var(--panel); border: 1px solid #1e293b; border-radius: 12px; padding: 15px; margin-top: 12px; }
-    .status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin-bottom: 12px; }
     .p-card { background: #030712; border: 1px solid #1e293b; border-radius: 8px; padding: 8px; font-size: 0.85em; }
-    .badge { font-size: 0.7em; background: #374151; padding: 2px 5px; border-radius: 4px; }
-    .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .cards-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 12px 0; }
     .card-item { background: #1f2937; border: 2px solid #374151; border-radius: 8px; padding: 10px; cursor: pointer; text-align: right; font-size: 0.85em; }
     .card-item.selected { border-color: var(--accent); background: #2d1a24; }
     button { background: var(--accent); color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 8px; }
     button.sec { background: #374151; }
     select, input, textarea { width: 100%; padding: 10px; background: #030712; border: 1px solid #1e293b; color: #fff; border-radius: 6px; margin-bottom: 8px; box-sizing: border-box; }
-    .narrative-box { background: #030712; border-right: 3px solid var(--gold); padding: 10px; text-align: right; font-size: 0.9em; line-height: 1.5; margin-bottom: 10px; }
-    .offer-box { background: #2a2415; border: 1px solid var(--gold); padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+    .inbox-box { background: #182238; border: 1px solid #3b82f6; padding: 10px; border-radius: 8px; margin-bottom: 12px; text-align: right; font-size: 0.85em; }
+    .case-box { background: #030712; border-right: 4px solid var(--gold); padding: 12px; text-align: right; font-size: 0.95em; line-height: 1.5; margin-bottom: 12px; }
   </style>
 </head>
 <body>
@@ -27,9 +26,9 @@
 <div class="container">
   <h2 style="color: var(--accent);">🏛️ المحكمة السرية</h2>
 
-  <!-- إعداد الأسماء -->
+  <!-- إعداد الطاولة -->
   <div id="screen-setup" class="panel">
-    <h3>إعداد الطاولة</h3>
+    <h3>إعداد اللعبة</h3>
     <input type="text" id="input-names" placeholder="الأسماء تفصلها فاصلة (أحمد, سارة, خالد)" value="أحمد, سارة, خالد">
     <button onclick="startGame()">بدء اللعبة</button>
   </div>
@@ -38,74 +37,68 @@
   <div id="screen-game" style="display:none;">
     <div class="status-bar" id="ui-status"></div>
 
-    <!-- السحب والدور -->
+    <!-- دور السحب والأحداث -->
     <div id="phase-action" class="panel">
       <div id="curtain">
         <h3 id="ui-turn-title">سلم الهاتف</h3>
-        <button onclick="revealTurn()">عرض الأوراق والدور السري</button>
+        <button onclick="revealTurn()">فتح الشاشة السرية</button>
       </div>
 
       <div id="deck-area" style="display:none;">
         <h3 id="ui-player-name">-</h3>
 
-        <!-- إشعار عرض التحالف المعلق -->
-        <div id="ui-alliance-offer" class="offer-box" style="display:none;">
-          <p id="ui-offer-text" style="margin:5px 0; font-size:0.85em;"></p>
-          <div style="display:flex; gap:5px;">
-            <button onclick="respondAlliance(true)">قبول 🤝</button>
-            <button onclick="respondAlliance(false)" class="sec">رفض ❌</button>
-          </div>
+        <!-- صندوق البريد والوارد السري -->
+        <div id="ui-inbox" class="inbox-box" style="display:none;">
+          <h4 style="margin:0 0 5px 0; color:#60a5fa;">📬 البريد السري الوارد:</h4>
+          <div id="ui-inbox-content"></div>
         </div>
 
         <div class="cards-grid" id="ui-cards-container"></div>
 
-        <!-- صندوق الحركة المخصصة -->
-        <div id="custom-box" style="display:none;">
-          <textarea id="input-custom-act" placeholder="اكتب ما تريد فعله ليحلله القاضي (مثلاً: سأقوم بابتزاز أحمد)..."></textarea>
+        <!-- نص الرسالة السرية -->
+        <div id="msg-box" style="display:none;">
+          <textarea id="input-msg-text" placeholder="اكتب رسالتك السرية هنا..."></textarea>
         </div>
 
+        <!-- اختيار الهدف -->
         <div id="target-box" style="display:none;">
-          <label style="font-size:0.8em;">اختر الهدف:</label>
+          <label style="font-size:0.8em;">اختر اللاعب المستهدف:</label>
           <select id="select-target"></select>
         </div>
 
-        <button onclick="submitAction()">تأكيد الحركة</button>
+        <button onclick="submitAction()">تأكيد الحركة وانتقال الدور</button>
       </div>
     </div>
 
-    <!-- مرحلة النقاش والتحقيق -->
-    <div id="phase-debate" class="panel" style="display:none;">
-      <h3>📜 تقرير المحكمة والتحقيق</h3>
-      <div class="narrative-box" id="ui-narrative">...</div>
-
-      <!-- أدوات الحشد والتحالف السريع -->
-      <div style="display:flex; gap:5px; margin-bottom:8px;">
-        <button onclick="triggerMobilize()" class="sec">📢 حشد ضد لاعب</button>
-        <button onclick="triggerEmergencyAlliance()" class="sec">🤝 طلب تحالف طارئ</button>
-      </div>
-
-      <button onclick="startGroupVote()">الانتقال للتصويت الجماعي</button>
-    </div>
-
-    <!-- التصويت الجماعي -->
+    <!-- جلسة القضاء والتصويت -->
     <div id="phase-vote" class="panel" style="display:none;">
-      <h3>⚖️ جلسة الحكم الجماعي</h3>
-      <select id="select-group-accused"></select>
-      <button onclick="processGroupVote()">إصدار الحكم النهائي</button>
+      <div class="case-box" id="ui-case-title">...</div>
+      
+      <label style="font-size:0.85em; display:block; margin-bottom:5px;">اختر متهم القضية بناءً على التحليل والنقاش:</label>
+      <select id="select-case-accused"></select>
+      <button onclick="processCaseVote()">إصدار الحكم النهائي</button>
     </div>
   </div>
 </div>
 
 <script>
-  // مسبح بطاقات ديناميكي
   const ALL_CARDS = [
-    { id: 'ATTACK', name: '🗡️ إدانة ظلية', desc: 'خصم 3 سمعة من الهدف', reqTarget: true, repChange: 0, targetRepChange: -3 },
-    { id: 'BOOST', name: '🛡️ تعزيز نفوذ', desc: '+2 سمعة لك', reqTarget: false, repChange: 2, targetRepChange: 0 },
-    { id: 'ALLIANCE_OFFER', name: '🤝 عرض تحالف', desc: 'إرسال طلب تحالف سري للهدف للقبول أو الرفض', reqTarget: true, repChange: 0, targetRepChange: 0 },
-    { id: 'CUSTOM_ACT', name: '📦 صندوق الاختيار الحر', desc: 'اكتب حركتك الخاصة بالكامل ليحللها AI', reqTarget: true, repChange: 0, targetRepChange: 0 }
+    { id: 'ATTACK', name: '🗡️ إدانة هجومية', desc: 'خصم 3 سمعة من الهدف', reqTarget: true },
+    { id: 'STEAL', name: '💰 سرقة نفوذ', desc: 'سرقة 2 سمعة من الهدف لصالحك', reqTarget: true },
+    { id: 'BOOST', name: '🛡️ تعزيز نفوذ', desc: '+2 سمعة لرصيدك الشخصي', reqTarget: false },
+    { id: 'ALLIANCE_OFFER', name: '🤝 عرض تحالف سري', desc: 'إرسال عرض تحالف يظهر في صندوق بريد الهدف', reqTarget: true },
+    { id: 'SECRET_MSG', name: '✉️ رسالة سرية', desc: 'إرسال رسالة نصية مخصصة تصل لبريد الهدف', reqTarget: true }
   ];
 
-  let gameState = { players: [], alliances: {}, pendingAllianceOffers: {}, currentTurn: 0, actions: [], selectedCard: null };
+  let gameState = {
+    players: [],
+    pendingOffers: {},
+    pendingMessages: {},
+    currentTurn: 0,
+    actions: [],
+    selectedCard: null,
+    currentCase: null
+  };
 
   function startGame() {
     const names = document.getElementById('input-names').value.split(',').map(n => n.trim()).filter(n => n);
@@ -125,7 +118,7 @@
 
   function renderStatus() {
     document.getElementById('ui-status').innerHTML = gameState.players.map(p => `
-      <div class="p-card ${p.reputation <= 0 ? 'dead' : ''}">
+      <div class="p-card">
         <b>${p.name}</b><br>${p.reputation <= 0 ? '💀 مقصى' : p.reputation + ' ⭐'}
       </div>
     `).join('');
@@ -135,7 +128,6 @@
     const p = gameState.players[gameState.currentTurn];
     if (p.reputation <= 0) { nextTurn(); return; }
     document.getElementById('phase-action').style.display = 'block';
-    document.getElementById('phase-debate').style.display = 'none';
     document.getElementById('phase-vote').style.display = 'none';
     document.getElementById('curtain').style.display = 'block';
     document.getElementById('deck-area').style.display = 'none';
@@ -148,20 +140,44 @@
     document.getElementById('deck-area').style.display = 'block';
     document.getElementById('ui-player-name').innerText = p.name;
 
-    // فحص عروض التحالف المعلقة
-    const offerBox = document.getElementById('ui-alliance-offer');
-    if (gameState.pendingAllianceOffers[p.id] !== undefined) {
-      const senderIdx = gameState.pendingAllianceOffers[p.id];
-      document.getElementById('ui-offer-text').innerText = `🤝 وصلك عرض تحالف سري من [${gameState.players[senderIdx].name}]!`;
-      offerBox.style.display = 'block';
-    } else {
-      offerBox.style.display = 'none';
+    // --- عرض صندوق الوارد السري (عروض ورسائل) ---
+    const inboxBox = document.getElementById('ui-inbox');
+    const inboxContent = document.getElementById('ui-inbox-content');
+    inboxContent.innerHTML = '';
+    let hasMessages = false;
+
+    // 1. فحص الرسائل السرية
+    if (gameState.pendingMessages[p.id] && gameState.pendingMessages[p.id].length > 0) {
+      hasMessages = true;
+      gameState.pendingMessages[p.id].forEach(m => {
+        inboxContent.innerHTML += `<div style="margin-bottom:6px;">📩 <b>رسالة من ${m.senderName}:</b> "${m.text}"</div>`;
+      });
+      gameState.pendingMessages[p.id] = []; // مسح بعد القراءة
     }
 
-    // عرض 3 أوراق عشوائية متغيرة في كل مرة
+    // 2. فحص عروض التحالف المعلقة
+    if (gameState.pendingOffers[p.id] && gameState.pendingOffers[p.id].length > 0) {
+      hasMessages = true;
+      gameState.pendingOffers[p.id].forEach((off, idx) => {
+        inboxContent.innerHTML += `
+          <div style="margin-bottom:6px; border-top:1px solid #334155; padding-top:4px;">
+            🤝 <b>عرض تحالف سري من ${off.senderName}!</b>
+            <div style="display:flex; gap:5px; margin-top:4px;">
+              <button onclick="acceptAlliance(${off.senderIdx}, ${idx})">قبول 🤝</button>
+              <button onclick="rejectAlliance(${idx})" class="sec">رفض ❌</button>
+            </div>
+          </div>`;
+      });
+    }
+
+    inboxBox.style.display = hasMessages ? 'block' : 'none';
+
+    // --- توليد عدد عشوائي متغيّر من البطاقات (1 أو 2 أو 3) ---
     const container = document.getElementById('ui-cards-container');
     container.innerHTML = '';
-    let hand = [...ALL_CARDS].sort(() => 0.5 - Math.random()).slice(0, 3);
+    const cardCount = Math.floor(Math.random() * 3) + 1; // 1 أو 2 أو 3
+    let shuffled = [...ALL_CARDS].sort(() => 0.5 - Math.random());
+    let hand = shuffled.slice(0, cardCount);
 
     hand.forEach(card => {
       container.innerHTML += `
@@ -173,20 +189,18 @@
     });
   }
 
-  function respondAlliance(accepted) {
+  function acceptAlliance(senderIdx, offerIdx) {
     const p = gameState.players[gameState.currentTurn];
-    const senderIdx = gameState.pendingAllianceOffers[p.id];
+    alert(`🤝 تم القبول! أصبحت الآن محالفاً لـ [${gameState.players[senderIdx].name}].`);
+    gameState.pendingOffers[p.id].splice(offerIdx, 1);
+    revealTurn();
+  }
 
-    if (accepted) {
-      const key = [Math.min(p.id, senderIdx), Math.max(p.id, senderIdx)].join('-');
-      gameState.alliances[key] = true;
-      alert("🤝 تم عقد التحالف السري بينكما بنجاح!");
-    } else {
-      alert("❌ قمت برفض عرض التحالف.");
-    }
-    delete gameState.pendingAllianceOffers[p.id];
-    document.getElementById('ui-alliance-offer').style.display = 'none';
-    renderStatus();
+  function rejectAlliance(offerIdx) {
+    const p = gameState.players[gameState.currentTurn];
+    gameState.pendingOffers[p.id].splice(offerIdx, 1);
+    alert("❌ تم رفض العرض.");
+    revealTurn();
   }
 
   function selectCard(cardId, el) {
@@ -194,7 +208,7 @@
     el.classList.add('selected');
     gameState.selectedCard = ALL_CARDS.find(c => c.id === cardId);
 
-    document.getElementById('custom-box').style.display = cardId === 'CUSTOM_ACT' ? 'block' : 'none';
+    document.getElementById('msg-box').style.display = cardId === 'SECRET_MSG' ? 'block' : 'none';
     const targetBox = document.getElementById('target-box');
 
     if (gameState.selectedCard.reqTarget) {
@@ -211,30 +225,16 @@
     }
   }
 
-  async function submitAction() {
-    if (!gameState.selectedCard) return alert("اختر بطاقة!");
+  function submitAction() {
+    if (!gameState.selectedCard) return alert("اختر بطاقة أولاً!");
     let targetIdx = gameState.selectedCard.reqTarget ? parseInt(document.getElementById('select-target').value) : null;
-    let customResult = null;
-
-    if (gameState.selectedCard.id === 'CUSTOM_ACT') {
-      const text = document.getElementById('input-custom-act').value;
-      if (!text) return alert("اكتب حركتك في الصندوق!");
-      const p = gameState.players[gameState.currentTurn];
-      const targetName = targetIdx !== null ? gameState.players[targetIdx].name : '';
-
-      const res = await fetch('/api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'analyze_custom_card', player: p.name, text, targetName })
-      });
-      customResult = await res.json();
-    }
+    let customText = gameState.selectedCard.id === 'SECRET_MSG' ? document.getElementById('input-msg-text').value : "";
 
     gameState.actions.push({
       playerIdx: gameState.currentTurn,
       card: gameState.selectedCard,
       targetIdx,
-      customResult
+      customText
     });
 
     nextTurn();
@@ -251,8 +251,6 @@
 
   async function resolveRoundServer() {
     document.getElementById('phase-action').style.display = 'none';
-    document.getElementById('phase-debate').style.display = 'block';
-    document.getElementById('ui-narrative').innerText = "جاري تجميع التحركات وتحليل القاضي...";
 
     const res = await fetch('/api', {
       method: 'POST',
@@ -261,50 +259,44 @@
         action: 'resolve_round',
         players: gameState.players,
         actions: gameState.actions,
-        alliances: gameState.alliances,
-        pendingAllianceOffers: gameState.pendingAllianceOffers
+        pendingOffers: gameState.pendingOffers,
+        pendingMessages: gameState.pendingMessages
       })
     });
 
     const data = await res.json();
     gameState.players = data.players;
-    gameState.alliances = data.alliances;
-    gameState.pendingAllianceOffers = data.pendingAllianceOffers;
-    document.getElementById('ui-narrative').innerText = data.narrative;
+    gameState.pendingOffers = data.pendingOffers;
+    gameState.pendingMessages = data.pendingMessages;
+    gameState.currentCase = data.courtCase;
+
     renderStatus();
+    showVotePhase();
   }
 
-  function triggerMobilize() {
-    const target = prompt("ادخل اسم اللاعب المراد الحشد ضده علناً:");
-    if (target) alert(`📢 تم رفع راية الحشد ضد [${target}]! أقيموا الدلائل عليه في التصويت!`);
-  }
-
-  function triggerEmergencyAlliance() {
-    alert("🤝 يمكنك الآن إرسال عرض تحالف خفي في دورك القادم للنجاة وتقاسم الضرر!");
-  }
-
-  function startGroupVote() {
-    document.getElementById('phase-debate').style.display = 'none';
+  function showVotePhase() {
     document.getElementById('phase-vote').style.display = 'block';
-    const select = document.getElementById('select-group-accused');
-    select.innerHTML = '<option value="">-- التغاضي (عدم اتهام أحد) --</option>';
+    document.getElementById('ui-case-title').innerText = gameState.currentCase.title;
+
+    const select = document.getElementById('select-case-accused');
+    select.innerHTML = '<option value="NONE">🕊️ لا أحد / قضية مضللة</option>';
     gameState.players.forEach((p, idx) => {
       if (p.reputation > 0) select.innerHTML += `<option value="${idx}">${p.name}</option>`;
     });
   }
 
-  async function processGroupVote() {
-    const val = document.getElementById('select-group-accused').value;
-    const accusedIdx = val !== "" ? parseInt(val) : null;
+  async function processCaseVote() {
+    const val = document.getElementById('select-case-accused').value;
+    const accusedIdx = val !== "NONE" ? parseInt(val) : null;
 
     const res = await fetch('/api', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'resolve_group_vote',
+        action: 'resolve_case_vote',
         players: gameState.players,
         accusedIdx,
-        actions: gameState.actions
+        trueCulpritIdx: gameState.currentCase.trueCulpritIdx
       })
     });
 
